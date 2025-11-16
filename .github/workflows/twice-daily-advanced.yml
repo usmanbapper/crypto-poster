@@ -1,21 +1,19 @@
-
-name: Twice-Daily Advanced Crypto Poster
+name: Twice Daily Advanced Poster
 
 on:
   schedule:
-    # 09:00 and 19:00 Africa/Lagos -> 08:00 and 18:00 UTC
-    - cron: '0 8 * * *'
-    - cron: '0 18 * * *'
-  workflow_dispatch: {}
+    - cron: '0 9,21 * * *'  # 9AM and 9PM UTC
+  workflow_dispatch:
 
 jobs:
   post:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v3
         with:
           node-version: '18'
 
@@ -24,8 +22,9 @@ jobs:
 
       - name: Run advanced poster
         env:
-          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          DEDUPE_DB: ./data/posts.db
-          PROJECTS_FILE: ./projects.json
         run: node ./scripts/generate_and_post.js
