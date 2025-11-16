@@ -1,0 +1,29 @@
+{
+  "projects": [
+    {
+      "name": "kudos",
+      "handle": "@kudoswapai",
+      "x_id": null
+    },
+    {
+      "name": "bluff",
+      "handle": "@official_bluff",
+      "x_id": null
+    },
+    {
+      "name": "sixr",
+      "handle": "@SIXR_cricket",
+      "x_id": null
+    },
+    {
+      "name": "sosovalue",
+      "handle": "@SoSoValueCrypto",
+      "x_id": null
+    },
+    {
+      "name": "namsolabs",
+      "handle": "@namsolabs",
+      "x_id": null
+    }
+  ]
+}
