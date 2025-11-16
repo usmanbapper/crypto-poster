@@ -24,7 +24,7 @@ jobs:
 
       - name: Run advanced poster
         env:
-          X_BEARER_TOKEN: ${{ secrets.AAAAAAAAAAAAAAAAAAAAACjN5QEAAAAAkjCWpvBxLSYNzbPsLsjg%2Fbxy7oE%3DDQDyccsna91w0MJh6juEuHTfbl05mAFzt521Hemo9XupC21SsE }}
+          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           DEDUPE_DB: ./data/posts.db
           PROJECTS_FILE: ./projects.json
