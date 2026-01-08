@@ -1,16 +1,11 @@
 {
-  "name": "crypto-reposter-advanced",
-  "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "start": "node scripts/generate_and_post.js"
+    "post": "node scripts/generate_and_post.js"
   },
   "dependencies": {
-    "node-fetch": "^2.6.7",
     "oauth-1.0a": "^2.2.6",
-    "sqlite3": "^5.1.6",
-    "sqlite": "^4.1.2",
-    "form-data": "^4.0.0",
-    "axios": "^1.6.7"
+    "node-fetch": "^3.3.2",
+    "openai": "^4.0.0"
   }
 }
