@@ -1,7 +1,6 @@
 import OAuth from "oauth-1.0a";
 import crypto from "crypto";
 import fetch from "node-fetch";
-import OpenAI from "openai";
 import fs from "fs";
 
 /* ================== CONFIG ================== */
@@ -16,7 +15,7 @@ const {
   X_API_SECRET,
   X_ACCESS_TOKEN,
   X_ACCESS_TOKEN_SECRET,
-  OPENAI_API_KEY,
+  DEEPSEEK_API_KEY,
   PROJECT_NAME
 } = process.env;
 
@@ -25,7 +24,7 @@ if (
   !X_API_SECRET ||
   !X_ACCESS_TOKEN ||
   !X_ACCESS_TOKEN_SECRET ||
-  !OPENAI_API_KEY
+  !DEEPSEEK_API_KEY
 ) {
   throw new Error("❌ Missing required environment variables");
 }
@@ -78,24 +77,42 @@ function oauthHeader(url, method) {
 
 /* ================== AI GENERATION ================== */
 
-const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
-
 async function generateCryptoPost() {
   const prompt = `
-Write a short, insightful crypto update about "${PROJECT_NAME}".
-Educational or thoughtful tone.
-No hype, no emojis spam.
+Write a short, insightful crypto update about "$crypto news and crypto airdrops".
+Educational or thoughtful or funny tone.
+No hype.
 Max 280 characters.
 Avoid repeating ideas.
 `;
 
-  const res = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.8,
-  });
+  try {
+    const res = await fetch("https://api.deepseek.com/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.DEEPSEEK_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "deepseek-chat",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.8
+      })
+    });
 
-  return res.choices[0].message.content.trim();
+    if (!res.ok) {
+      const err = await res.text();
+      console.log("⚠️ DeepSeek error:", err);
+      return null;
+    }
+
+    const data = await res.json();
+    return data.choices[0].message.content.trim();
+
+  } catch (err) {
+    console.log("⚠️ DeepSeek request failed");
+    return null;
+  }
 }
 
 /* ================== POST TO X ================== */
