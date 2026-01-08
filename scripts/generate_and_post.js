@@ -1,21 +1,13 @@
 import OAuth from "oauth-1.0a";
 import crypto from "crypto";
 import fetch from "node-fetch";
-import Database from "better-sqlite3";
 import OpenAI from "openai";
-import dotenv from "dotenv";
+import fs from "fs";
 
-dotenv.config();
+/* ================== CONFIG ================== */
 
-/* ================== SAFETY GUARDS ================== */
-
-// Kill switch for GitHub Actions
-if (process.env.GITHUB_ACTIONS === "true") {
-  throw new Error("Posting disabled on GitHub Actions");
-}
-
-// Dry run mode (change to false only when ready)
-const DRY_RUN = true;
+const DB_FILE = "posts.json";
+const DRY_RUN = false; // set true to test without posting
 
 /* ================== ENV ================== */
 
@@ -28,19 +20,42 @@ const {
   PROJECT_NAME
 } = process.env;
 
-if (!OPENAI_API_KEY) throw new Error("Missing OPENAI_API_KEY");
+if (
+  !X_API_KEY ||
+  !X_API_SECRET ||
+  !X_ACCESS_TOKEN ||
+  !X_ACCESS_TOKEN_SECRET ||
+  !OPENAI_API_KEY
+) {
+  throw new Error("❌ Missing required environment variables");
+}
 
-/* ================== DATABASE ================== */
+/* ================== STORAGE ================== */
 
-const db = new Database("posts.db");
+function loadPosts() {
+  if (!fs.existsSync(DB_FILE)) return [];
+  return JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
+}
 
-db.prepare(`
-  CREATE TABLE IF NOT EXISTS posts (
-    hash TEXT PRIMARY KEY,
-    content TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
-`).run();
+function savePosts(posts) {
+  fs.writeFileSync(DB_FILE, JSON.stringify(posts, null, 2));
+}
+
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function alreadyPostedToday(posts) {
+  return posts.some(p => p.date === today());
+}
+
+function hashText(text) {
+  return crypto.createHash("sha256").update(text).digest("hex");
+}
+
+function isDuplicate(posts, hash) {
+  return posts.some(p => p.hash === hash);
+}
 
 /* ================== OAUTH ================== */
 
@@ -55,13 +70,13 @@ const oauth = new OAuth({
   },
 });
 
-function oauthHeader(url, method, data = {}) {
-  const request_data = { url, method, data };
+function oauthHeader(url, method) {
+  const request_data = { url, method };
   const token = { key: X_ACCESS_TOKEN, secret: X_ACCESS_TOKEN_SECRET };
   return oauth.toHeader(oauth.authorize(request_data, token));
 }
 
-/* ================== AI GENERATOR ================== */
+/* ================== AI GENERATION ================== */
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
@@ -71,7 +86,7 @@ Write a short, insightful crypto update about "${PROJECT_NAME}".
 Educational or thoughtful tone.
 No hype, no emojis spam.
 Max 280 characters.
-Never repeat previous posts.
+Avoid repeating ideas.
 `;
 
   const res = await openai.chat.completions.create({
@@ -83,39 +98,19 @@ Never repeat previous posts.
   return res.choices[0].message.content.trim();
 }
 
-/* ================== DUPLICATE CHECK ================== */
-
-function hashText(text) {
-  return crypto.createHash("sha256").update(text).digest("hex");
-}
-
-function alreadyPostedToday() {
-  const row = db.prepare(`
-    SELECT 1 FROM posts
-    WHERE DATE(created_at) = DATE('now','localtime')
-  `).get();
-  return !!row;
-}
-
-function isDuplicate(hash) {
-  const row = db.prepare("SELECT 1 FROM posts WHERE hash = ?").get(hash);
-  return !!row;
-}
-
 /* ================== POST TO X ================== */
 
 async function postTweet(text) {
-  const url = "https://api.twitter.com/2/tweets";
-
-  const headers = {
-    Authorization: oauthHeader(url, "POST").Authorization,
-    "Content-Type": "application/json",
-  };
-
   if (DRY_RUN) {
     console.log("\n[DRY RUN] Would post:\n", text);
     return;
   }
+
+  const url = "https://api.twitter.com/2/tweets";
+  const headers = {
+    Authorization: oauthHeader(url, "POST").Authorization,
+    "Content-Type": "application/json",
+  };
 
   const res = await fetch(url, {
     method: "POST",
@@ -131,33 +126,42 @@ async function postTweet(text) {
   return res.json();
 }
 
-/* ================== MAIN JOB ================== */
+/* ================== MAIN ================== */
 
 async function runDailyPost() {
-  if (alreadyPostedToday()) {
-    console.log("Already posted today — skipping");
+  const posts = loadPosts();
+
+  if (alreadyPostedToday(posts)) {
+    console.log("✅ Already posted today — skipping");
     return;
   }
 
   const text = await generateCryptoPost();
   if (!text) {
-    console.log("AI returned empty content — skipping");
+    console.log("⚠️ AI returned empty content — skipping");
     return;
   }
 
   const hash = hashText(text);
-  if (isDuplicate(hash)) {
-    console.log("Duplicate content detected — skipping");
+
+  if (isDuplicate(posts, hash)) {
+    console.log("⚠️ Duplicate content detected — skipping");
     return;
   }
 
   await postTweet(text);
 
-  db.prepare(
-    "INSERT INTO posts (hash, content) VALUES (?, ?)"
-  ).run(hash, text);
+  posts.push({
+    hash,
+    content: text,
+    date: today(),
+  });
 
-  console.log("Post completed successfully");
+  savePosts(posts);
+  console.log("🚀 Post published successfully");
 }
 
-runDailyPost().catch(console.error);
+runDailyPost().catch(err => {
+  console.error("❌ Job failed:", err.message);
+  process.exit(1);
+});
